@@ -17,6 +17,9 @@
   },
   "homepage": "https://github.com/cyclic-software/starter-express-api#readme",
   "dependencies": {
-    "express": "^4.17.1"
+    "discord.js": "^14.11.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.17.1",
+    "ytdl-core": "^4.11.4"
   }
 }
