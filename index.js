@@ -2,7 +2,7 @@ const { Client, Intents } = require('discord.js');
 const ytdl = require('ytdl-core');
 const { YTSearcher } = require('ytsearcher');
 require('dotenv').config({path: __dirname + '/.env'})
-const { createAudioResource, joinVoiceChannel, getVoiceConnection, createAudioPlayer } = require('@discordjs/voice');
+const { createAudioResource, joinVoiceChannel, getVoiceConnection, createAudioPlayer, AudioPlayerStatus } = require('@discordjs/voice');
 
 
 const client = new Client({
@@ -15,6 +15,11 @@ const queues = new Map();
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}!`);
+  let activities = [`with my balls`, `with your dad`, `with the gang` ],i = 0;
+  setInterval(
+    () => client.user.setActivity(`${activities[i++ % activities.length]}`,       
+    {type:"STREAMING",url:"https://youtu.be/rTawvzH0MQ4" }), 5000)
+  
     client.application.commands.create({
         name: 'play',
         description: 'Play a song',
@@ -49,7 +54,7 @@ client.on('ready', () => {
 
   client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
-    const serverQueue = queues.get(interaction.guild.id);
+    const serverQueue = queues.get(interaction.guildId);
     if (interaction.commandName === 'play') {
       const searchString = interaction.options.getString('song');
       const videoResult = await searcher.search(searchString, { type: 'video' });
@@ -64,6 +69,7 @@ client.on('ready', () => {
         };
         queues.set(interaction.guild.id, queue);
         queue.songs.push(song);
+        await interaction.reply(`**${song.title}** has been added to the queue!`);
         try {
             const connection = getVoiceConnection(interaction.guildId);
             if (!connection) {
@@ -93,6 +99,7 @@ client.on('ready', () => {
       if (serverQueue) {
         serverQueue.songs = [];
         serverQueue.connection.destroy();
+        serverQueue.player.stop();
         await interaction.reply('Music stopped!');
       } else {
         await interaction.reply('There is nothing playing.');
@@ -105,6 +112,7 @@ client.on('ready', () => {
         await interaction.reply('Skipped the current song!');
       } else {
         serverQueue.connection.destroy();
+        queue.player.stop();
         await interaction.reply('There is nothing playing.');
       }
     } else if (interaction.commandName === 'queue') {
@@ -122,8 +130,10 @@ client.on('ready', () => {
 async function playSong(interaction, song) {
 
     const queue = queues.get(interaction.guildId);
+  console.log(song)
     if (!song) {
-      queue.voiceChannel.leave();
+      queue.connection.destroy();
+      queue.player.stop();
       queues.delete(interaction.guild.id);
       return;
     }
@@ -142,25 +152,12 @@ async function playSong(interaction, song) {
         playSong(interaction, queue.songs[0]);
     });
     queue.player
-      .on('finish', () => {
+      .on(AudioPlayerStatus.Idle, () => {
         queue.songs.shift();
         playSong(interaction, queue.songs[0]);
       })
   }
   
 
-  async function handleQueue(interaction, queue) {
-    const serverQueue = queues.get(interaction.guild.id);
-    if (!queue) {
-      await serverQueue.voiceChannel.leave();
-      queues.delete(interaction.guild.id);
-      return;
-    }
-    serverQueue.songs.push(queue);
-    await interaction.reply(`**${queue.title}** has been added to the queue!`);
-    if (!serverQueue.playing) {
-      serverQueue.playing = true;
-      await playSong(interaction, serverQueue.songs[0]);
-    }
-  }
+
   client.login(process.env.DISCORDAPI);
