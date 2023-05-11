@@ -30,35 +30,45 @@ client.on('ready', () => {
           required: true
         }]
       })
-      .then(console.log)
+      .then()
       .catch(console.error);
       client.application.commands.create({
         name: 'stop',
         description: 'Stop the music',
       })
-      .then(console.log)
+      .then()
       .catch(console.error);
       client.application.commands.create({
         name: 'queue',
         description: 'Show the queue of songs',
       })
-      .then(console.log)
+      .then()
       .catch(console.error);
       client.application.commands.create({
         name: 'skip',
         description: 'Skip to the next song',
       })
-      .then(console.log)
+      .then()
       .catch(console.error);
   });
 
   client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
-    const serverQueue = queues.get(interaction.guildId);
+    const serverQueue = queues.get(interaction.guild.id);
+    console.log(queues)
     if (interaction.commandName === 'play') {
       const searchString = interaction.options.getString('song');
-      const videoResult = await searcher.search(searchString, { type: 'video' });
-      const song = { title: videoResult.first.title, url: videoResult.first.url };
+      let videoResult;
+      let song;
+      try{
+        videoResult = await searcher.search(searchString, { type: 'video' });
+        console.log(videoResult)
+        song = { title: videoResult.first.title, url: videoResult.first.url };
+      }catch(e){
+        console.error(e)
+        await interaction.reply(`Could not find the song, please provide a different name/link`);
+        return
+      }
       if (!serverQueue) {
         const queue = {
           textChannel: interaction.channel,
@@ -71,7 +81,7 @@ client.on('ready', () => {
         queue.songs.push(song);
         await interaction.reply(`**${song.title}** has been added to the queue!`);
         try {
-            const connection = getVoiceConnection(interaction.guildId);
+            const connection = getVoiceConnection(interaction.guild.id);
             if (!connection) {
               const voiceChannel = interaction.member.voice.channel;
               if (!voiceChannel) {
@@ -90,6 +100,7 @@ client.on('ready', () => {
           console.error(error);
           queues.delete(interaction.guild.id);
           await interaction.reply('There was an error connecting to the voice channel!');
+          return
         }
     } else {
         serverQueue.songs.push(song);
@@ -97,22 +108,24 @@ client.on('ready', () => {
       }
     } else if (interaction.commandName === 'stop') {
       if (serverQueue) {
-        serverQueue.songs = [];
-        serverQueue.connection.destroy();
         serverQueue.player.stop();
+        queues.delete(interaction.guild.id)
+        const connection = getVoiceConnection(interaction.guild.id);
+        connection.destroy();
         await interaction.reply('Music stopped!');
       } else {
         await interaction.reply('There is nothing playing.');
       }
     } else if (interaction.commandName === 'skip') {
       if (serverQueue && serverQueue.connection) {
-        console.log(serverQueue)
         serverQueue.songs.shift();
         playSong(interaction, serverQueue.songs[0]);
         await interaction.reply('Skipped the current song!');
       } else {
-        serverQueue.connection.destroy();
-        queue.player.stop();
+        serverQueue.player.stop();
+        queues.delete(interaction.guild.id)
+        const connection = getVoiceConnection(interaction.guild.id);
+        connection.destroy();
         await interaction.reply('There is nothing playing.');
       }
     } else if (interaction.commandName === 'queue') {
@@ -129,12 +142,12 @@ client.on('ready', () => {
   
 async function playSong(interaction, song) {
 
-    const queue = queues.get(interaction.guildId);
-  console.log(song)
+    const queue = queues.get(interaction.guild.id);
     if (!song) {
-      queue.connection.destroy();
       queue.player.stop();
-      queues.delete(interaction.guild.id);
+      queues.delete(interaction.guild.id)
+      const connection = getVoiceConnection(interaction.guild.id);
+      connection.destroy();
       return;
     }
     const stream = ytdl(song.url, { filter: 'audioonly' });
@@ -144,18 +157,21 @@ async function playSong(interaction, song) {
     queue.player = audioPlayer;
     queue.connection.subscribe(audioPlayer);
 
-    console.log(queue.player)
     queue.player.play(audioResource);
     queue.player.on('error', (error) => {
         console.error(error);
         queue.songs.shift();
         playSong(interaction, queue.songs[0]);
     });
+
     queue.player
+    .on(AudioPlayerStatus.Playing, () => {
+      queue.player
       .on(AudioPlayerStatus.Idle, () => {
         queue.songs.shift();
         playSong(interaction, queue.songs[0]);
       })
+    })
   }
   
 
