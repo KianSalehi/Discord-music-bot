@@ -55,15 +55,20 @@ client.on('ready', () => {
   client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
     const serverQueue = queues.get(interaction.guild.id);
-    console.log(queues)
     if (interaction.commandName === 'play') {
       const searchString = interaction.options.getString('song');
       let videoResult;
       let song;
       try{
         videoResult = await searcher.search(searchString, { type: 'video' });
-        console.log(videoResult)
         song = { title: videoResult.first.title, url: videoResult.first.url };
+        const basicInfo = await ytdl.getBasicInfo(song.url)
+        const durationInSeconds = parseInt(basicInfo.videoDetails.lengthSeconds);
+    
+        if (durationInSeconds > 360){
+          await interaction.reply(`I cannot play videos over 6 minutes`);
+          return
+        }
       }catch(e){
         console.error(e)
         await interaction.reply(`Could not find the song, please provide a different name/link`);
@@ -79,6 +84,7 @@ client.on('ready', () => {
         };
         queues.set(interaction.guild.id, queue);
         queue.songs.push(song);
+        
         await interaction.reply(`**${song.title}** has been added to the queue!`);
         try {
             const connection = getVoiceConnection(interaction.guild.id);
@@ -95,6 +101,7 @@ client.on('ready', () => {
               });
               queue.connection = player;
             }
+            
           await playSong(interaction, queue.songs[0]);
         } catch (error) {
           console.error(error);
@@ -144,10 +151,10 @@ async function playSong(interaction, song) {
 
     const queue = queues.get(interaction.guild.id);
     if (!song) {
-      queue.player.stop();
+      queue?.player.stop();
       queues.delete(interaction.guild.id)
       const connection = getVoiceConnection(interaction.guild.id);
-      connection.destroy();
+      connection?.destroy();
       return;
     }
     const stream = ytdl(song.url, { filter: 'audioonly' });
