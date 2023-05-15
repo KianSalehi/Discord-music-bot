@@ -63,12 +63,12 @@ client.on('ready', () => {
         videoResult = await searcher.search(searchString, { type: 'video' });
         song = { title: videoResult.first.title, url: videoResult.first.url };
         const basicInfo = await ytdl.getBasicInfo(song.url)
-        const durationInSeconds = parseInt(basicInfo.videoDetails.lengthSeconds);
+        // const durationInSeconds = parseInt(basicInfo.videoDetails.lengthSeconds);
     
-        if (durationInSeconds > 360){
-          await interaction.reply(`I cannot play videos over 6 minutes`);
-          return
-        }
+        // if (durationInSeconds > 360){
+        //   await interaction.reply(`I cannot play videos over 6 minutes`);
+        //   return
+        // }
       }catch(e){
         console.error(e)
         await interaction.reply(`Could not find the song, please provide a different name/link`);
