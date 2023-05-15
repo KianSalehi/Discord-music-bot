@@ -3,7 +3,7 @@ const ytdl = require('ytdl-core');
 const { YTSearcher } = require('ytsearcher');
 require('dotenv').config({path: __dirname + '/.env'})
 const { createAudioResource, joinVoiceChannel, getVoiceConnection, createAudioPlayer, AudioPlayerStatus } = require('@discordjs/voice');
-
+const play = require('play-dl');
 
 const client = new Client({
     intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES],
@@ -157,9 +157,11 @@ async function playSong(interaction, song) {
       connection?.destroy();
       return;
     }
-    const stream = ytdl(song.url, { filter: 'audioonly' });
-
-    const audioResource = createAudioResource(stream);
+    
+    let stream = await play.stream(song.url);
+    const audioResource = createAudioResource(stream.stream, {
+      inputType: stream.type
+  });
     const audioPlayer = createAudioPlayer();
     queue.player = audioPlayer;
     queue.connection.subscribe(audioPlayer);
